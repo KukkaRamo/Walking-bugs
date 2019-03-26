@@ -1,0 +1,444 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<HEAD>
+	<title>How to Make Bug Free Software</title>
+	<BASE "file:///media/USB%20DISK/MyWeb">
+<!-- BASE href="file:///E:/MyWeb/">
+-->
+	</BASE>
+	<style>
+		<!-- DIV.bugshome {width:700; height:500}>
+		DIV.tabin {width:320}
+		IMG.bugimg {margin-left:10; margin-top:10; width:20; height:30; border: 3px #808000 outset}
+		.nodec {text-decoration:none}
+		p.linkexps {color:#811768;margin-left:55; font-weight:bold; font-size:14}
+		SPAN.linkattr {font-family:arial; color:yellow; margin-left:15; vertical-align:40%}
+		SPAN.whitetext {font-family:arial; color:white; font-size:12; border-bottom:dashed; text-align:center}
+		SPAN.purpletext {font-family:arial; color:#811768; font-size:12; text-align:center}
+	</style>
+
+
+<SCRIPT type="text/javascript">
+<!--
+
+class BugType {
+
+	constructor (ParArr)
+	{
+		// Default values for appearance
+		this.BugLength=50; this.BugWidth=25;
+		this.NumOfFeet=6; // Number of feet, must be even
+		this.FemX=5; this.FemY=2; this.LegX=5;
+		this.LegY=2; this.AnkX=2; this.AnkY=2;
+		this.AntX=12; this.AntY=8;
+		this.AntDistX=3;
+		this.AntCoef=0.2;
+		this.HeadCoef=0;
+		this.HeadLength= 0; 
+		this.SnoutLength=0;
+		this.StomCol="#101010";
+		this.StrokeCol=0; this.StrokeWeight=0;
+		this.TailPat=0;
+
+		// Default values for behaviour
+		// Currently all type variables are class parameters but it is easy to change it
+		this.xdown=200; this.xup=450; this.ydown=250; this.yup=400; // Moving rectangle area
+		this.PStartAdv = 0.1;  // Probability to start advancing if not advancing
+		this.PStopAdv = 0.1;  // Probability to stop advancing if advancing
+		this.StartRotNotAdvCoef = 0.01; // How much to decrease the probability to start rotating if not advancing
+		this.StopRotNotAdvCoef = 2; // How much to enhange the probability to stop rotating if not advancing
+		this.PRotDirChg = 0.05; // If rotating, the probability of rotation direction change
+		this.PRotStepChg = 0.05; // If rotating, the probability that the rotation step is changed
+		this.StepCoef = 0.3; // Proportion between angular distance to midpoint direction and the desired rotation step
+		this.StartRotIfNotRot=this.InverseD; this.StopRotIfRot=this.RightHalfBath; this.ChooseRotStep=this.ChoRotStep;
+		// Weibull with beta 4 could be also considered for RotDifNotRot
+		// Use of general extreme value distributions could be limited since exponents must be positive for e
+		this.Food="tellmyfavoritefood";
+
+		// Define parameters for a bug type
+		var A = ParArr.split(",");
+		for (var i in A)
+			{ eval ("this."+A[i]); }
+
+		// Conversions
+		this.AntDistX=Math.floor(this.BugWidth/2*this.AntCoef);
+		this.HeadLength= Math.floor(this.BugLength * this.HeadCoef); 
+
+		// Checks
+		if (this.xdown<0) this.xdown=0;
+		if (this.ydown<0) this.ydown=0;
+		if (this.xup<this.xdown) this.xup=this.xdown;
+		if (this.yup<this.ydown) this.yup=this.ydown;
+		if (this.TailPat<0) this.TailPat=0; // TailPat+1 used as a divisor
+		if (this.NumOfFeet%2==1) this.NumOfFeet--;
+		if (this.AntDistX<0) this.AntDistX*=-1;
+
+	}
+	
+	IsLeftFoot (foot) {
+		return foot > this.NumOfFeet/2;
+	}
+
+	BuildMyView ()
+	{
+		var curwidth,curlength,halfwidth,halflength, updist, lowdist, origx, origy;
+		var coordx, coordy, dist, limbxsize, limbysize, antycoord, footpairs;
+
+		curwidth=this.BugWidth;
+		curlength=this.BugLength;
+		halfwidth=Math.floor(curwidth/2);
+		halflength=Math.floor(curlength/2);
+
+		var BugBody = document.createElementNS("http://www.w3.org/2000/svg", "svg:g");
+		BugBody.setAttribute("id", "BugBody"+this.id);
+
+		// Bug body has id, width, height, rotx, roty, transform 
+		// two antennas, stomach, optional snout, optional tail patterns, optional head, and bugtype.NumOfFeet feet
+
+		limbxsize = Math.abs(this.FemX) + Math.abs(this.LegX) + Math.abs(this.AnkX);
+		limbxsize=Math.max(limbxsize,Math.abs(this.AntDistX+this.AntX)-halfwidth);
+		// X-direction is symmetric, so the longest limb is calculated and the origin is in the middle of the body
+		limbysize = Math.abs(this.FemY) + Math.abs(this.LegY) + Math.abs(this.AnkY);
+
+		// Y Coordinate for the base of antennas
+		antycoord= (this.HeadLehgth>0) ? this.HeadLength/2 : halflength;
+		antycoord = Math.floor(antycoord* (1- Math.sqrt(1-(Math.pow(this.AntDistX/halfwidth,2))) ) );
+
+		// Upper Y area before the origin is the longest extension from the body (snout, antenna, or limb)
+		// Lower Y area correspondingly
+		// Coordinates are independent on where the feet are located if thet are on stomach edges above the first half of the head
+		updist=Math.max((this.AntY > antycoord) ? this.AntY-antycoord : 0,(this.SnoutLength > 0) ? this.SnoutLength : 0);
+		updist=Math.max(updist,limbysize-Math.floor(this.HeadLength/2));  
+		// The above is an approximation because should be independent on whether feet are a distance from top and bottom, see foot creation
+		lowdist = Math.max((this.AntY<0)? -this.AntY-curlength+antycoord : 0, (this.SnoutLength<0) ? -this.SnoutLength-curlength : 0)
+		lowdist = Math.max(lowdist, limbysize);
+			
+		BugBody.setAttribute("width", curwidth + 2 * limbxsize);
+		BugBody.setAttribute("height", updist + curlength + lowdist); // Upper Y area + body length + back limbs when extended backwards
+		origx=halfwidth+limbxsize;
+		origy=updist;
+		BugBody.setAttribute("rotx",origx);
+		BugBody.setAttribute("roty",origy+halflength);
+
+		BugBody.appendChild(MakeElement("svg:ellipse","Stomach"+this.id,this.StomCol,((this.StrokeWeight>0) ? "true" : "false"),this.StrokeCol,this.StrokeWeight,origx-halfwidth,origy,curwidth, curlength));
+	 
+		if (this.HeadLength >0)
+		{
+			BugBody.appendChild(MakeElement("svg:ellipse","Head"+this.id, "#101010", "false",0,0, origx-halfwidth,origy,curwidth, this.HeadLength));
+		}
+
+
+		for (var j=-1; j<=1; j+=2)
+		{
+			BugBody.appendChild(MakeElement("svg:line","Antenna"+this.id+ ((j==-1) ? 1 : 2), "#BF9000", "true","#201010","2", origx+this.AntDistX*j, origy+antycoord, origx+(this.AntDistX+this.AntX)*j, origy+antycoord-this.AntY));
+		}
+
+
+		if (this.SnoutLength>0)
+		{
+			BugBody.appendChild(MakeElement("svg:line","Snout"+this.id,"#BF9000","true","#201010","3",origx,origy,origx,origy-this.SnoutLength));
+		}
+		
+		dist=Math.floor((curlength-this.HeadLength)/(3*this.TailPat+3));
+		for (j=1; j<=this.TailPat; j++)
+		{
+			BugBody.appendChild(MakeElement("svg:ellipse","Pattern"+ this.id + "P" + j,"#BF9000","false",0,0,origx-0.25*curwidth,origy+curlength-dist*(3*j+1),halfwidth,2*dist));
+		}
+
+
+		// Feet
+		footpairs=this.NumOfFeet/2;
+		for (j=1; j<=this.NumOfFeet; j++)
+		{
+
+			dist=Math.floor((curlength-Math.floor(this.HeadLength/2))/(footpairs+1));
+			// +1 because feet are some distant apart from top and bottom
+			coordy = curlength-dist*((j>footpairs) ? j-footpairs : j);
+			coordx = Math.floor(halfwidth * Math.sqrt(1-Math.pow((coordy-halflength)/halflength,2)));
+			coordx= ((this.IsLeftFoot(j)) ? -1 : 1) * coordx;
+			BugBody.appendChild(MakeElement("svg:path","Foot"+ this.id + "F" + j, "#BF9000", "true","#201010","2", origx+coordx, origy+coordy,0,0));
+		}
+
+		BugBody.setAttribute("transform","translate("+ (this.left)+" "+(this.top)+") rotate("+this.rotation+" " + BugBody.getAttribute("rotx") + ", " +BugBody.getAttribute("roty")+")");
+		this.body=BugBody;
+		return BugBody;
+	}
+
+	MoveAndUpdateStatus ()
+	{
+
+		var xstep, ystep, rotstring, xdleft, ydleft, relgone, stepsleft, rand, dist, rotprop, rotd;
+
+		// Main position is vertical and rotation is clockwise
+		dist=this.FemY+this.LegY+this.AnkY;
+		xstep = Math.floor(dist*Math.sin (this.rotation/360*2*Math.PI));
+		ystep = -Math.floor(dist*Math.cos (this.rotation/360*2*Math.PI));
+		// - because vertical coordinates grow downwards the screen
+
+
+		// Complete old movement first
+		this.rotation=(this.rotation + this.RotStep+360) % 360;
+		rotstring = this.rotation+" "+(parseInt(this.body.getAttribute("rotx")))+ ", " +(parseInt(this.body.getAttribute("roty"))); // Why not left and top
+		if (this.Advancing==1)
+		{
+			this.left=Math.max(this.left+xstep,this.xdown); this.left=Math.min(this.left,this.xup);
+			this.top=Math.max(this.top+ystep,this.ydown); this.top=Math.min(this.top,this.yup);
+		}
+
+		this.body.setAttribute("transform", "translate("+this.left+" "+this.top +" ) rotate("+rotstring+")");
+
+		// Make possible changes for advancing and rotating statuses
+
+		rand = Math.random();
+		if (rand < ((this.Advancing==1) ? this.PStopAdv : this.PStartAdv)) this.Advancing *= -1;
+
+		// x Upwards if rot < 180 else downwards
+		if (this.rotation<180) {xdleft=this.xup-this.left;}
+		else {xdleft=this.left-this.xdown}
+		// if rot 90-270 y upwards else y downwards
+		if (this.rotation<90 || this.rotation>270) {ydleft=this.top-this.ydown}
+		else {ydleft=this.yup-this.top}
+		
+		relgone = (this.xup==this.xdown || this.yup==this.ydown) ? 1 
+			: Math.max(1 - xdleft/(this.xup-this.xdown), 1 - ydleft/(this.yup-this.ydown));
+		if (this.rotation==0 || this.rotation==180) stepsleft= (ystep==0) ? 0 : ydleft/Math.abs(ystep);
+		else if (this.rotation==90 || this.rotation==270) stepsleft= (xstep==0) ? 0 : xdleft/Math.abs(xstep);
+		else stepsleft=(xstep==0 || ystep==0) ? 0 : Math.min(xdleft/Math.abs(xstep), ydleft/Math.abs(ystep));
+
+		if (this.RotStep!=0) // Rotating
+		{
+			rotprop = this.StopRotIfRot(relgone);
+			if ( (rand=Math.random()) < (rotprop * ((this.Advancing==1) ? 1 : this.StopRotNotAdvCoef) )) this.RotStep=0;
+			else if ((rand=Math.random()) < this.PRotStepChg ) this.RotStep = this.ChooseRotStep(this.RotStep);
+		}
+		else  // Not rotating
+		{
+			rotprop = this.StartRotIfNotRot(stepsleft);
+			if ( (rand=Math.random()) < ( rotprop * ((this.Advancing==1) ? 1 : this.StartRotNotAdvCoef) ) )
+			{
+				rotd = Math.round(Math.atan2(((this.yup+this.ydown)/2-this.top),(this.left-(this.xup+this.xdown)/2)) / 2/Math.PI*360);
+				rotd = (270-rotd-this.rotation+720) % 360; // desired direction - rotation
+				this.RotStep = this.ChooseRotStep(Math.floor(rotd*this.StepCoef));
+			}
+		}
+		if ((rand=Math.random()) < this.PRotDirChg) this.RotStep *= -1;
+	}
+
+	MoveFoot (foot, dir)
+	{
+		var Foot, locx, locy, xinc, subssplit, dstring;
+		Foot = document.getElementById("Foot"+this.id+"F"+foot);
+		subssplit = Foot.getAttribute("d").split(" ");
+		locx = parseInt(subssplit[1]);//locx = parseInt(Foot.d.M.x);
+		locy = parseInt(subssplit[2]);//locy = parseInt(Foot.d.M.y);
+		dstring="M "+locx+" "+locy+" C ";
+		xinc = (this.IsLeftFoot(foot)) ? -1 : 1;
+		locx += this.FemX*xinc; locy += this.FemY*dir;
+		dstring += locx + " " + locy + " ";
+		locx += this.LegX*xinc; locy += this.LegY*dir;
+		dstring += locx + " " + locy + " ";
+		locx += this.AnkX*xinc; locy += this.AnkY*dir;
+		Foot.setAttribute("d",dstring + locx + " " + locy);
+	}
+
+	SlowWaveGairtControl ()
+	{
+		var i;
+		switch (this.FootPos)
+		{
+		case this.NumOfFeet+1:
+		case 0:
+			for (i=1;i<this.NumOfFeet+1;i++) this.MoveFoot(i, (this.FootPos==0) ? 0 : 1);
+			this.MoveAndUpdateStatus();
+			this.FootPos = ((this.Advancing==1) || (this.RotStep!=0) )
+			? 1 // Start the next stage if advancing and/or rotating
+			: 0; // Put on rest if not advancing or rotating
+			break;
+		default: 
+			this.MoveFoot(this.FootPos,-1);
+			this.FootPos++;
+			break;
+		}
+	}
+
+	
+	ChoRotStep (desiredStep) // Currently all bug types use this one for defining rotation steps
+	{
+		var rand, rotstep;
+		rand=Math.random();
+		rotstep = Math.round(desiredStep-(180*rand*rand*rand));
+		rand=Math.random();
+		if (rand<0.1) rotstep += Math.random()*360;
+		return (rotstep+360)%360;
+	}
+
+	InverseD (stepsleft) // Uniform distribution for deciding movements
+	{
+		return (stepsleft==0) ? 1 : 0.05+1/stepsleft;
+	}
+
+
+	RightHalfBath (relsteps)
+	{
+		// from zero to c: b + k1*x
+		// from c to 1: b + k1*c + k2*(x-c)
+		// Choose c=0.6, k2 = 4*k1, b = 0.05
+		// k1 becomes 0.95/2.2 and k2 becomes 3.8/2.2 if the probability at 1 is 1
+
+		var ret;
+		if (relsteps<=0.6)
+			{ ret =  0.05 + 0.95/2.2 * relsteps; }
+		else  {ret = -1.6/2.2 + 3.8/2.2*relsteps;}
+		return 1-ret; // returns p(stops)
+	}
+
+}
+
+class Bug extends BugType {
+	constructor (arg, bugid) {
+		super(arg);
+		// Set parameters for an instance
+		this.id = bugid;
+		// Motion control properties for this instance
+		this.left=Math.floor((this.xup-this.xdown)*Math.random()+this.xdown);
+		this.top=Math.floor((this.yup-this.ydown)*Math.random()+this.ydown);
+		this.rotation = Math.floor(360*Math.random()) % 360;
+		this.Advancing=-1;
+		this.RotStep=0; 
+		this.FootPos=0;
+	}
+}
+
+// Modify these input variables and arrays when adding new bug types or modifying ones.
+BugTypes = new Array (5);
+BugTypes["lum"]=new Array ("xup=600", "StrokeCol='#C09010'","StrokeWeight=1", "Food='garden plants'", "SciName='Galerucella nymphaeae'");
+BugTypes["tai"]=new Array ("xdown=120","xup=150", "BugLength=60", "BugWidth=30", "AntY=2", "AntCoef=0.15", "SnoutLength=10", "TailPat=3", "Food='pine'", "SciName='Hylobius abietis'");
+BugTypes["pap"]=new Array ("xdown=170","xup=210","ydown=140","yup=190", "AntY=-2", "StomCol='#020245'", "Food='buildings'", "SciName='Callidium violaceum'");
+BugTypes["lku"]=new Array ("BugLength=60", "BugWidth=30", "FemX=6","FemY=3","LegX=6","LegY=3","AnkX=3","AnkY=3", "AntX=-12","AntY=12", "AntCoef=0.8", "StomCol='#BC2E02'", "Food='garden plants'", "SciName='Lilioceris lilii'");
+BugTypes["ktk"]=new Array("xdown=220", "xup=330", "ydown=80", "yup=210", "BugLength=30", "BugWidth=15", "FemX=2","LegX=2","AnkY=1", "AntX=6","AntY=1", "HeadCoef=0.4", "StomCol='#F23102'", "Food='spruce'", "SciName='Sextandad barkborre'");
+
+// Input: Types of bugs to be created
+var Name = new Array("tai","pap","lku","ktk","lum","lum","lum","lum");
+var ABug = new Array(Name.length);
+
+// Global display variables
+var svg;
+var csizex=700;
+var csizey=500;
+
+
+function MakeElement (pshape, pid, pfillcolor, pstroke, pstrokecolor, pstrokeweight, pleft, ptop, pwidth, pheight)
+{ // Global function for building basic elements
+
+	CreatedEl = document.createElementNS("http://www.w3.org/2000/svg", pshape);
+	CreatedEl.setAttribute("id",pid);
+	CreatedEl.setAttribute("fill",pfillcolor);
+	if (pstroke=="true")
+	{
+		CreatedEl.setAttribute("stroke",pstrokecolor);
+		CreatedEl.setAttribute("stroke-width",pstrokeweight);
+	}
+	if (pshape=="svg:ellipse")
+	{
+		CreatedEl.setAttribute("cx",pleft + Math.floor(pwidth/2));
+		CreatedEl.setAttribute("cy",ptop + Math.floor(pheight/2));
+		CreatedEl.setAttribute("rx",Math.floor(pwidth/2));
+		CreatedEl.setAttribute("ry",Math.floor(pheight/2));
+	}
+	else if (pshape=="svg:path") {
+		CreatedEl.setAttribute("d","(M "+pleft+" "+ptop+" C 0 0 0 0 0 0 )");
+	}
+	else if (pshape=="svg:line")
+	{
+		CreatedEl.setAttribute("x1",pleft);
+		CreatedEl.setAttribute("y1",ptop);
+		CreatedEl.setAttribute("x2",pwidth);
+		CreatedEl.setAttribute("y2",pheight);
+
+	}
+	return CreatedEl;
+}
+
+function CreateCanvas(width, height)
+{
+	svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg:svg');
+	svg.setAttribute("id","svg");
+	svg.setAttribute('width', width);
+	svg.setAttribute('height', height);
+	svg.setAttribute('version', '1.1');
+	svg.setAttribute('viewBox','0 0 '+ width + ' ' + height );
+	return svg;
+}
+
+function CreateBugs()
+{
+
+	svg = CreateCanvas(csizex, csizey);
+	var bugid;
+	bugid = 0;
+	while (bugid<Name.length)
+	{
+	
+		// Create one bug
+		if (!BugTypes[Name[bugid]]) alert ("No such bugtype "+Name[bugid]);
+		else
+		{
+			var arg = new String (BugTypes[Name[bugid]]);
+ 			var bug =new Bug (arg, bugid);
+			svg.appendChild(bug.BuildMyView());
+			bug.interval = window.setInterval( function(that) {return function() {that.SlowWaveGairtControl();}} (bug), 300);
+			ABug[bugid]=bug;
+		}
+		bugid++;
+	}
+	document.getElementById("BugHome").appendChild(svg);
+	white = document.getElementById("whitetext");
+	for (var key in BugTypes) {
+	var filtered = BugTypes[key].filter(function (x){return x.substring(0,5)=="Food="});
+	var food = (filtered.length==0) ? "food undefined" : filtered[0].substring(5);
+	filtered = BugTypes[key].filter(function (x){return x.substring(0,8)=="SciName="});
+	var sciname = (filtered.length==0) ? "scientific name undefined" : filtered[0].substring(8);
+	white.innerHTML=white.innerHTML+" "+Name.filter(function(x){return x==key;}).length+", "+sciname+", "+food+";";
+	}
+	// document.firstChild.firstElementChild.nextElementSibling.firstElementChild.firstElementChild.firstElementChild.firstElementChild.firstElementChild.firstElementChild.appendChild(svg);
+}
+
+
+//-->
+</SCRIPT>
+</HEAD>
+
+<BODY BGCOLOR=#15C711 link=yellow vlink=orange onLoad="CreateBugs()">
+
+	<table BORDER=0 CELLSPACING=30 WIDTH=100%>
+
+		<TR>
+
+			<TD  background="SamScene.JPG">
+				<DIV position=relative;>
+					<DIV class=bugshome id="BugHome" alt="Nest and yard for bugs">
+
+					</DIV>
+				</DIV>
+			</TD>
+		</TR>
+
+
+		<TR COLSPAN=2>
+			<TD>
+				<B>
+					<SPAN class=whitetext id="whitetext">If svg is supported, you can see these hidden bugs in the picture (count, name, favorite food): </SPAN>
+				</B>
+			</TD>
+		</TR>
+
+
+	</table>
+
+	<SPAN class=purpletext style="display:block; margin:30; text-align:left">
+		<B>	<HR> All software that becomes visible when selecting "View source" from this page or its subpages has been hand-written by author. </B>
+		<br>If you find any other bugs than the visible ones, please e-mail the author.
+	</SPAN>
+	<br>
+</BODY>
+</html>
